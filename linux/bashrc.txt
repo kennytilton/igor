@@ -1,0 +1,312 @@
+alias rba='source ~/.bashrc'
+
+alias credit_text='python3 ~/pyutil/credit_text.py'
+alias clipconc='python3 ~/pyutil/clipconc.py'
+
+since () {
+  if [ "$#" -lt 1 ]; then
+    echo "Usage: recent-files MINUTES [EXT ...]"
+    echo "Example:"
+    echo "  recent-files 10"
+    echo "  recent-files 5 jpg"
+    echo "  recent-files 15 jpg png mp4"
+    return 1
+  fi
+
+  local minutes="$1"
+  shift
+
+  if ! [[ "$minutes" =~ ^[0-9]+$ ]]; then
+    echo "Error: MINUTES must be a non-negative integer"
+    return 1
+  fi
+
+  if [ "$#" -eq 0 ]; then
+    # No extension filter
+    find . -type f -mmin "-$minutes" -print
+    return 0
+  fi
+
+  # Build extension filter
+  local expr=()
+  for ext in "$@"; do
+    ext="${ext#.}"  # remove leading dot if supplied
+    expr+=( -iname "*.${ext}" -o )
+  done
+  unset 'expr[${#expr[@]}-1]'  # remove trailing -o
+
+  find . -type f \( "${expr[@]}" \) -mmin "-$minutes" -print
+}
+
+alias clipconc='python3 ~/pyutil/clipconc.py'
+alias clipconccg='python3 ~/pyutil/clipconccg.py'
+alias clipconccl='python3 ~/pyutil/clipconccl.py'
+
+xfade() {
+    if [ "$#" -ne 3 ]; then
+        echo "Usage: xfade image1.png image2.png output.mp4"
+        return 1
+    fi
+
+    # Logic for Timing:
+    # 1. Image 1 needs to exist for (Hold Start + Transition) = 1 + 2 = 3s
+    # 2. Image 2 needs to exist for (Transition + Hold Final) = 2 + 3 = 5s
+    # 3. Offset is the point the transition begins = 1s
+    # 4. Duration is the length of the transition = 2s
+
+    ffmpeg -y -loop 1 -t 3 -i "$1" \
+           -loop 1 -t 5 -i "$2" \
+    -filter_complex \
+    "[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[v0]; \
+     [1:v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[v1]; \
+     [v0][v1]xfade=transition=fade:duration=2:offset=1,format=yuv420p" \
+    -movflags +faststart "$3"
+}
+
+jpgall () 
+{ 
+    find . -maxdepth 1 -type f \( -name "*.webp" -o -name "*.avif" \) -print0 | xargs -0 -P 32 -n 1 bash -c '
+        f="$1"
+        magick "$f" -quality 95 "${f%.*}.jpg" && rm -- "$f"
+    ' _
+}
+
+ftype-count() {
+  [ "$#" -lt 1 ] && {
+    echo "Usage: ftype-count EXT [EXT...]" >&2
+    return 1
+  }
+
+  for ext in "$@"; do
+    # strip leading dot if provided
+    ext="${ext#.}"
+
+    count=$(find . -type f -iname "*.${ext}" -print 2>/dev/null | wc -l)
+    printf "%-10s %8d\n" "$ext" "$count"
+  done
+}
+
+alias pbg='puppy_bed_gen ~/igor_app/cdn/igor/base/empty-bed-city.png midnight rain'
+
+# source ~/xtts-init.sh
+source ~/bashutil/clip-fade-3.sh
+source ~/igor_app/init.sh
+source ~/llama.sh
+source ~/git-commands.sh
+source ~/video-init.sh
+source ~/cloudflare_prep.sh
+source ~/igor_app/igor_slept_here/pmpv-init.sh
+source ~/mp4-frame-final.sh
+alias mpfin='mp4-frame-final'
+
+parse_git_branch() {
+     git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
+}
+
+export PS1="\u@\h:\w\[\e[91m\]\$(parse_git_branch)\[\e[00m\]$ "
+
+alias b='git branch -lv --sort=-committerdate'
+alias bb='git branch'
+alias bsy='~/bsy-install.sh'
+alias comfy='cd ~/ComfyUI && source .venv/bin/activate && python main.py --output-directory /home/tilton/00/out --fp8_e4m3fn-unet'
+alias comm='git commit -am'
+alias diff='git diff --ignore-space-at-eol -b -w --ignore-blank-lines'
+alias diffnod='git diff origin/dev --name-only'
+alias diffod='git diff origin/dev'
+alias diffom='git diff origin/main --name-only'
+alias diffomx='git diff origin/main --name-only --ignore-space-at-eol -b -w --ignore-blank-lines'
+alias dir='find . -name'
+alias dolphin='ask-llama :dolphin'
+alias dox='git diff origin/main --ignore-space-at-eol -b -w --ignore-blank-lines'
+alias doxn='git diff origin/main --name-only --ignore-space-at-eol -b -w --ignore-blank-lines'
+alias dv='git switch dev'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias filmall='mogrify -resize "480x480^" *.jpg *.png'
+alias filmify='mogrify -resize "480x480^"'
+alias forget='git rm -r --cached'
+alias fslive='PMPVHOLDFOR=10 PMPVSCREEN=1 PMPVFS=1 pmpv ~/00/out/igor/live'
+alias gfp='~/gfpgan-all.sh'
+alias gitundo='git reset --soft HEAD~'
+alias glow='xtmodel tts_models/en/ljspeech/glow-tts'
+alias grep='grep --color=auto'
+alias hardly='git reset --hard'
+alias jenny='xtmodel tts_models/en/jenny/jenny'
+alias jpg-ify='mogrify -format jpg *.png && rm *.png'
+alias l='git log'
+alias ll='ls -1'
+alias ll32='ask-llama :ll32'
+alias ls='ls -a --color=auto'
+alias lsa='ls -1'
+alias m='git switch main'
+alias mbase='git merge-base'
+alias melgran='xtmodel vocoder_models/en/ljspeech/multiband-melgan'
+alias mis7b='ask-llama :mis7b'
+alias nemo='ask-llama :nemo'
+alias neon='xtmodel tts_models/en/ljspeech/vits--neon'
+alias o4x='~/realesrgan4x.sh'
+alias out='git checkout'
+alias playmod='mpv $(ls -tr wav/*.wav)'
+alias pull='git pull'
+alias pup='~/ai/script/portrait-upscale.sh'
+alias push='git push'
+alias pushup='git push --set-upstream origin $(parse_git_branch_nodeco)'
+alias r4x='~/res-4x.sh'
+alias revod='git checkout origin/dev --'
+alias revom='git checkout origin/master --'
+alias rshell='exec $SHELL'
+alias s='git status'
+alias sadsam='xtmodel tts_models/en/sam/tacotron-DDC'
+alias save='git commit -am "save"'
+alias soft='git reset --soft'
+alias speedy='xtmodel tts_models/en/ljspeech/speedy-speech'
+alias stash='git stash push -m'
+alias stashtime='git stash list --date=relative'
+alias sw='git switch'
+alias taco='xtmodel tts_models/en/ek1/tacotron2'
+alias taco2='xtmodel tts_models/en/ljspeech/tacotron2-DCA'
+alias twgui='(cd ~/text-generation-webui && source .venv/bin/activate && python3 server.py --listen)'
+alias uncommit='git reset --hard HEAD~'
+alias up='cd ..'
+alias venvp='echo "$VIRTUAL_ENV"'
+alias vits='xtmodel tts_models/en/ljspeech/vits'
+alias wavegrad='xtmodel vocoder_models/en/ek1/wavegrad'
+alias webui='docker stop open-webui || true && docker rm open-webui || true && \
+docker run -d --network=host \
+  -v open-webui:/app/backend/data \
+  -e OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+  --name open-webui \
+  --gpus all \
+  --restart always \
+  ghcr.io/open-webui/open-webui:cuda'
+alias webuig='docker start open-webui || docker run -d -p 3000:8080 \
+  --add-host=host.docker.internal:host-gateway \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  -v open-webui:/app/backend/data \
+  --name open-webui \
+  --restart always \
+  ghcr.io/open-webui/open-webui:main'
+alias wip='git commit -am "test: (SCRUM-12345) w.i.p"'
+alias xifd='exiftool -Description'
+alias xplay='aplay xtts.wav'
+alias xpwd='pwd | xclip -selection clipboard'
+alias xtgo='source ~/piper/models/xtts/bin/activate'
+alias xtkwt='xtvoice "$HOME/sam/voice/kwtsand.wav"'
+alias xtsplit='/home/tilton/sam/util/xtsplit.sh'
+
+
+# If not running interactively, don't do anything
+case $- in
+    *i*) ;;
+      *) return;;
+esac
+
+# don't put duplicate lines or lines starting with space in the history.
+# See bash(1) for more options
+HISTCONTROL=ignoreboth
+
+# append to the history file, don't overwrite it
+shopt -s histappend
+
+# for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
+HISTSIZE=1000
+HISTFILESIZE=2000
+
+# check the window size after each command and, if necessary,
+# update the values of LINES and COLUMNS.
+shopt -s checkwinsize
+
+# If set, the pattern "**" used in a pathname expansion context will
+# match all files and zero or more directories and subdirectories.
+#shopt -s globstar
+
+# make less more friendly for non-text input files, see lesspipe(1)
+[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+
+# set variable identifying the chroot you work in (used in the prompt below)
+if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
+    debian_chroot=$(cat /etc/debian_chroot)
+fi
+
+# set a fancy prompt (non-color, unless we know we "want" color)
+case "$TERM" in
+    xterm-color|*-256color) color_prompt=yes;;
+esac
+
+# uncomment for a colored prompt, if the terminal has the capability; turned
+# off by default to not distract the user: the focus in a terminal window
+# should be on the output of commands, not on the prompt
+#force_color_prompt=yes
+
+if [ -n "$force_color_prompt" ]; then
+    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
+	# We have color support; assume it's compliant with Ecma-48
+	# (ISO/IEC-6429). (Lack of such support is extremely rare, and such
+	# a case would tend to support setf rather than setaf.)
+	color_prompt=yes
+    else
+	color_prompt=
+    fi
+fi
+
+# if [ "$color_prompt" = yes ]; then
+#     PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+# else
+#     PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+# fi
+# unset color_prompt force_color_prompt
+
+# If this is an xterm set the title to user@host:dir
+case "$TERM" in
+xterm*|rxvt*)
+    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
+    ;;
+*)
+    ;;
+esac
+
+# enable color support of ls and also add handy aliases
+if [ -x /usr/bin/dircolors ]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    alias ls='ls --color=auto'
+    #alias dir='dir --color=auto'
+    #alias vdir='vdir --color=auto'
+
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
+fi
+
+# colored GCC warnings and errors
+#export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+
+# some more ls aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
+# Add an "alert" alias for long running commands.  Use like so:
+#   sleep 10; alert
+alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
+
+# Alias definitions.
+# You may want to put all your additions into a separate file like
+# ~/.bash_aliases, instead of adding them here directly.
+# See /usr/share/doc/bash-doc/examples in the bash-doc package.
+
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi
+
+# enable programmable completion features (you don't need to enable
+# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
+# sources /etc/bash.bashrc).
+if ! shopt -oq posix; then
+  if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+  elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+  fi
+fi
+
+alias credit_text='python3 ~/pyutil/credit_text.py'
