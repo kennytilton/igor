@@ -25,57 +25,25 @@ class MpvGemHome extends StatefulWidget {
 
 class _MpvGemHomeState extends State<MpvGemHome> {
   Process? _mpvProcess;
-  double _fade = -1.0;
+  double _fade = 1.0;
   int _speed = 50;
   String _statusMessage = '';
-
-  // Cached capability: null = not yet detected, true/false = result.
-  bool? _crossfadeSupported;
 
   static const String _mpvBin = '/opt/homebrew/bin/mpv';
   final String _selectedPath = '/Users/tilton/igor/linux/film';
 
-  /// Runs `mpv --list-options` once per app session to detect whether the
-  /// `video-crossfade` option is available in the installed mpv build.
-  Future<bool> _detectCrossfadeSupport() async {
-    if (_crossfadeSupported != null) return _crossfadeSupported!;
-    try {
-      final result = await Process.run(_mpvBin, ['--list-options']);
-      _crossfadeSupported =
-          (result.stdout as String).contains('video-crossfade');
-    } catch (e) {
-      debugPrint('mpv capability detection failed: $e');
-      _crossfadeSupported = false;
-    }
-    return _crossfadeSupported!;
-  }
-
-  /// Generates a Lua script that applies either crossfade (when supported and
-  /// [useCrossfade] is true) or a fade-to-black filter chain.
-  Future<File> _createLuaScript({required bool useCrossfade}) async {
+  /// Generates a Lua script that applies a fade-to-black filter chain.
+  Future<File> _createLuaScript() async {
     final tempDir = await getTemporaryDirectory();
     final luaFile = File(p.join(tempDir.path, 'gem_logic.lua'));
 
-    final fadeSeconds = _fade.abs();
-
-    final String luaContent;
-    if (useCrossfade) {
-      luaContent = '''
-local mp = require 'mp'
-
-mp.register_event("file-loaded", function()
-    mp.set_property_number("speed", $_speed / 100.0)
-    mp.set_property_number("video-crossfade-duration", $fadeSeconds)
-end)
-''';
-    } else {
-      luaContent = '''
+    final luaContent = '''
 local mp = require 'mp'
 
 mp.register_event("file-loaded", function()
     local duration = mp.get_property_number("duration", 0)
     mp.set_property_number("speed", $_speed / 100.0)
-    local fade_dur = $fadeSeconds
+    local fade_dur = $_fade
     local st_out = math.max(0, duration - fade_dur)
     local vf = string.format(
         "format=yuv420p,fade=t=in:st=0:d=%.2f,fade=t=out:st=%.2f:d=%.2f",
@@ -83,7 +51,6 @@ mp.register_event("file-loaded", function()
     mp.commandv("vf", "set", vf)
 end)
 ''';
-    }
     return await luaFile.writeAsString(luaContent);
   }
 
@@ -102,12 +69,7 @@ end)
     _mpvProcess = null;
     setState(() => _statusMessage = '');
 
-    final crossfadeOk = await _detectCrossfadeSupport();
-    // Use crossfade only when the slider is negative (user requested it) and
-    // the installed mpv supports the option.
-    final useCrossfade = _fade < 0 && crossfadeOk;
-
-    final luaScript = await _createLuaScript(useCrossfade: useCrossfade);
+    final luaScript = await _createLuaScript();
     final mainFiles = _getMediaFiles(_selectedPath);
     final gapFiles = _getMediaFiles(p.join(_selectedPath, 'gap'));
     final idleFiles = _getMediaFiles(p.join(_selectedPath, 'idle'));
@@ -139,7 +101,6 @@ end)
       '--ontop',
       '--script=${luaScript.path}',
       '--loop-playlist=inf',
-      if (useCrossfade) '--video-crossfade=yes',
       ...playlist,
     ];
 
@@ -171,11 +132,6 @@ end)
         });
       }
     });
-
-    if (_fade < 0 && !crossfadeOk) {
-      setState(() => _statusMessage =
-          'Note: crossfade not supported by this mpv build; using fade-to-black.');
-    }
   }
 
   @override
@@ -197,8 +153,8 @@ end)
             const SizedBox(height: 20),
             Text('Speed: $_speed%'),
             Slider(value: _speed.toDouble(), min: 10, max: 200, onChanged: (v) => setState(() => _speed = v.round())),
-            Text(_fade < 0 ? 'Crossfade: ${_fade.abs().toStringAsFixed(1)}s' : 'Fade-to-Black: ${_fade.toStringAsFixed(1)}s'),
-            Slider(value: _fade, min: -2.0, max: 2.0, onChanged: (v) => setState(() => _fade = v)),
+            Text('Fade: ${_fade.toStringAsFixed(1)}s'),
+            Slider(value: _fade, min: 0.0, max: 2.0, onChanged: (v) => setState(() => _fade = v)),
             const SizedBox(height: 20),
             Center(
               child: ElevatedButton(
@@ -217,11 +173,9 @@ end)
                 ),
                 child: Text(
                   _statusMessage,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
-                    color: _statusMessage.startsWith('Note:')
-                        ? Colors.amber
-                        : Colors.redAccent,
+                    color: Colors.redAccent,
                   ),
                 ),
               ),
